@@ -1,0 +1,76 @@
+#include <TimerOne.h>
+#include <LiquidCrystal.h>
+
+// Updated to match your schematic wiring: (RS, E, D4, D5, D6, D7)
+LiquidCrystal lcd(11, 10, 5, 4, 3, 2); 
+
+volatile int TimeinSec = 0;
+volatile bool timerFlag = false;
+
+int val;
+const int tempPin = A0;      // LM35 is on A0
+const int HBSensor = 6;      // Heartbeat sensor on Pin 6
+const int HBStart = 5;       // Button on Pin 5
+
+int HBCount = 0;
+int HBCheck = 0;
+int HBperMin = 0;
+int HBStartCheck = 0;
+
+void timerIsr() {
+  if (HBStartCheck == 1) {
+    TimeinSec++;
+    timerFlag = true;
+  }
+}
+
+void setup() {
+  lcd.begin(20, 4);
+  pinMode(HBSensor, INPUT);
+  pinMode(HBStart, INPUT_PULLUP);
+  
+  Timer1.initialize(1000000); // 1 second
+  Timer1.attachInterrupt(timerIsr);
+  
+  lcd.setCursor(0, 0); lcd.print("HEALTH MONITORING");
+  lcd.setCursor(0, 1); lcd.print("TIME IN SEC : ");
+  lcd.setCursor(0, 3); lcd.print("BODY TEMP   : ");
+  lcd.setCursor(0, 2); lcd.print("HB PER MIN  : ");
+}
+
+void loop() {
+  // Update time
+  if (timerFlag) {
+    lcd.setCursor(14, 1);
+    lcd.print(TimeinSec);
+    timerFlag = false;
+  }
+
+  // Temperature (LM35)
+  val = analogRead(tempPin);
+  int cel = (val * 5.0 * 100.0) / 1024.0;
+  lcd.setCursor(14, 3);
+  lcd.print(cel);
+
+  // Button to start
+  if (digitalRead(HBStart) == LOW) HBStartCheck = 1;
+
+  // Heartbeat Logic
+  if (HBStartCheck == 1) {
+    if ((digitalRead(HBSensor) == HIGH) && (HBCheck == 0)) {
+      HBCount++;
+      HBCheck = 1;
+    }
+    if ((digitalRead(HBSensor) == LOW) && (HBCheck == 1)) HBCheck = 0;
+
+    if (TimeinSec >= 10) {
+      HBperMin = HBCount * 6;
+      lcd.setCursor(14, 2);
+      lcd.print(HBperMin);
+      lcd.print("   "); // Clear extra digits
+      HBCount = 0;
+      TimeinSec = 0;
+      HBStartCheck = 0;
+    }
+  }
+}]
